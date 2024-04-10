@@ -58,8 +58,10 @@ SC_ref = readRDS.lbzip2('/your_path/DEMO_data/REF_PFC.rdsFS',n.cores=50)
 EXP_df = readRDS('/your_path/DEMO_data/EXP_PFC_df.rds')
 
 ##Obtaining reference cell type labels and subject labels
-celltype = SC_ref@meta.data[['']]
-subject = SC_ref@meta.data[['']]
+##Please note that the cell type labels should not contain any symbols other than "_".
+
+celltype = SC_ref@meta.data[['cell type label']]
+subject = SC_ref@meta.data[['subject labels']]
 ```
 
 (Optional) If computational resources are insufficient (<256GB), subjects in SC_ref can be sampled.
@@ -94,10 +96,10 @@ n_cores: Number of parallel cores, default 5
 
 ```
 ReCIDE_results = ReCIDE_deconvolution(Sig_list = ref_MGM.list,
-EXP_df = EXP_df,
-Method = 'DWLS'
-n_cores = 50,
-n_celltype = 0)
+                                      EXP_df = EXP_df,
+                                      Method = 'DWLS',
+                                      n_cores = 50,
+                                      n_celltype = 0)
 ```
 
 Sig_list:  list of reference MGMs output in step 3
