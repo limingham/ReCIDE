@@ -60,8 +60,8 @@ EXP_df = readRDS('/your_path/DEMO_data/EXP_PFC_df.rds')
 ##Obtaining reference cell type labels and subject labels
 ##Please note that the cell type labels should not contain any symbols other than "_".
 
-celltype = SC_ref@meta.data[['cell type label']]
-subject = SC_ref@meta.data[['subject labels']]
+celltype = SC_ref@meta.data[['cell type label']] ##In the demo data, it is major.celltype.
+subject = SC_ref@meta.data[['subject labels']] ##In the demo data, it is subject.
 ```
 
 (Optional) If computational resources are insufficient (<256GB), subjects in SC_ref can be sampled.
