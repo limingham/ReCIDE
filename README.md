@@ -50,7 +50,7 @@ source('/your_path/ReCIDE_all_function.R')
 
 ### 2. Load DEMO data:
 
-The DEMO data is from the leave-one-out test of PFC, and all data can be obtained from https://drive.google.com/drive/folders/1TRz7Xj4Ddvt3NMTOHbpiTJBkTbDuaXzf?usp=drive_link. In addition to the reference single-cell RNA-Seq matrix, other data can also be obtained from  [ReCIDE/DEMO_data at main · limingham/ReCIDE (github.com)](https://github.com/limingham/ReCIDE/tree/main/DEMO_data) .
+The DEMO data is from the cross datasets test of PFC, and all data can be obtained from https://drive.google.com/drive/folders/1TRz7Xj4Ddvt3NMTOHbpiTJBkTbDuaXzf?usp=drive_link. In addition to the reference single-cell RNA-Seq matrix, other data can also be obtained from  [ReCIDE/DEMO_data at main · limingham/ReCIDE (github.com)](https://github.com/limingham/ReCIDE/tree/main/DEMO_data) .
 
 ```
 ##Load single-cell reference and pseudo-bulk datasets
