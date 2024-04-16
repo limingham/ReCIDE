@@ -50,7 +50,7 @@ source('/your_path/ReCIDE_all_function.R')
 
 ### 2. Load DEMO data:
 
-The DEMO data is from the leave-one-out test of PFC, and all data can be obtained from https://drive.google.com/drive/folders/1TRz7Xj4Ddvt3NMTOHbpiTJBkTbDuaXzf?usp=drive_link. In addition to the reference single-cell RNA-Seq matrix, other data can also be obtained from  [ReCIDE/DEMO_data at main · limingham/ReCIDE (github.com)](https://github.com/limingham/ReCIDE/tree/main/DEMO_data) .
+The DEMO data is from the cross datasets test of PFC, and all data can be obtained from https://drive.google.com/drive/folders/1TRz7Xj4Ddvt3NMTOHbpiTJBkTbDuaXzf?usp=drive_link. In addition to the reference single-cell RNA-Seq matrix, other data can also be obtained from  [ReCIDE/DEMO_data at main · limingham/ReCIDE (github.com)](https://github.com/limingham/ReCIDE/tree/main/DEMO_data) .
 
 ```
 ##Load single-cell reference and pseudo-bulk datasets
@@ -58,8 +58,10 @@ SC_ref = readRDS.lbzip2('/your_path/DEMO_data/REF_PFC.rdsFS',n.cores=50)
 EXP_df = readRDS('/your_path/DEMO_data/EXP_PFC_df.rds')
 
 ##Obtaining reference cell type labels and subject labels
-celltype = SC_ref@meta.data[['']]
-subject = SC_ref@meta.data[['']]
+##Please note that the cell type labels should not contain any symbols other than "_".
+
+celltype = SC_ref@meta.data[['cell type label']] ##In the demo data, it is major.celltype.
+subject = SC_ref@meta.data[['subject labels']] ##In the demo data, it is subject.
 ```
 
 (Optional) If computational resources are insufficient (<256GB), subjects in SC_ref can be sampled.
@@ -94,10 +96,10 @@ n_cores: Number of parallel cores, default 5
 
 ```
 ReCIDE_results = ReCIDE_deconvolution(Sig_list = ref_MGM.list,
-EXP_df = EXP_df,
-Method = 'DWLS'
-n_cores = 50,
-n_celltype = 0)
+                                      EXP_df = EXP_df,
+                                      Method = 'DWLS',
+                                      n_cores = 50,
+                                      n_celltype = 0)
 ```
 
 Sig_list:  list of reference MGMs output in step 3
