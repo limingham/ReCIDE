@@ -1,0 +1,310 @@
+library(fastSave) %>% suppressMessages() 
+library(Seurat)  %>% suppressMessages() 
+library(pbmcapply)  %>% suppressMessages() 
+library(dplyr)  %>% suppressMessages() 
+library(COSG)  %>% suppressMessages() 
+
+combined.data.sub=readRDS.lbzip2('~/scRNA_Seq_data/PBMC/Stephenson_seurat.rdsFS',n.cores = 200)
+
+bulk.mtx<- readRDS("~/ReCIDE/应用_前二_新_inter/COVID19/bulkdata/counts_data_query.rds")
+rn=intersect(row.names(combined.data.sub),row.names(bulk.mtx))
+combined.data.sub=combined.data.sub[rn,]
+
+patient_id_df<-as.data.frame(table(combined.data.sub@meta.data[["patient_id"]]))
+patient_id_df<-patient_id_df[patient_id_df[,2]>500,]
+##制作sign基因矩阵
+func_in<-function(i){
+  ref_seurat<-subset(combined.data.sub,patient_id == as.character(patient_id_df[i,1]))
+  ref_seurat<-NormalizeData(ref_seurat)
+  df2<-as.data.frame(t(as.data.frame(ref_seurat@assays[["RNA"]]@data)))
+  gc()
+  df2[,"celltype_major"]<-ref_seurat@meta.data[["true"]]
+  ref_list1<-group_by(df2,celltype_major) %>% summarize_each(mean)
+  ref_list1<-as.data.frame(ref_list1)
+  row.names(ref_list1)<-ref_list1[,1]
+  ref_list1<-ref_list1[,-1]
+  ref_list1<-as.data.frame(t(ref_list1))
+  return(ref_list1)
+}
+
+ref_list<-pbmclapply(1:nrow(patient_id_df),func_in,mc.cores = 2)
+
+names(ref_list)=paste0(patient_id_df[,1],'_sep.ref')
+
+
+ref_listFB<-ref_list
+#ref_list<-ref_listFB
+
+
+
+func_secondFC<-function(i){
+  secondFC <- c()
+  for(gene in rownames(ref_list[[i]])){
+    secondFC <- c(secondFC, sort(as.numeric(ref_list[[i]][gene, ]), decreasing = T)[1]/sort(as.numeric(ref_list[[i]][gene, ]), decreasing = T)[2])
+  }
+  names(secondFC) <- row.names(ref_list[[i]])
+  # secondFC.list[[i]]<-secondFC
+  # names(secondFC.list)[i]<-names(ref_list)[i]
+  secondFC=sort(secondFC)
+  return(secondFC)
+}
+
+secondFC.list<-pbmclapply(1:length(ref_list),func_secondFC,mc.cores = 2)
+names(secondFC.list)=paste0(patient_id_df[,1],'_sep.ref')
+
+func_findnames=function(i){
+  ref_in=ref_list[[i]]
+  n_col=ncol(ref_in)
+  for (j in 1:nrow(ref_in)) {
+    ref_in[j,n_col+1] = names(which.max(ref_in[j,]))
+  }
+  return(ref_in)
+}
+
+ref_list.names<-pbmclapply(1:length(ref_list),func_findnames,mc.cores = 2)
+names(ref_list.names)=paste0(patient_id_df[,1],'_sep.ref')
+
+
+
+func_FC_screen<-function(i){
+  secondFC_in=secondFC.list[[i]][secondFC.list[[i]]>=1.5]
+  ref_list.names_in=ref_list.names[[i]]
+  colnames(ref_list.names_in)[ncol(ref_list.names_in)]='celltype'
+  
+  ref_list.names_in_FB=ref_list.names_in
+  
+  ref_list.names_in<-ref_list.names_in[names(secondFC_in),]
+  
+  gene_table=as.data.frame(table(ref_list.names_in[,ncol(ref_list.names_in)]))
+  gene_table=gene_table[gene_table[,2]<10,]
+  
+  
+  
+  if(nrow(gene_table)>0){
+    ref_list.names_in=subset(ref_list.names_in,!(celltype %in% gene_table[,1]))
+    
+    for(g in 1:nrow(gene_table)){
+      cell_sub=ref_list.names_in_FB[ref_list.names_in_FB[,'celltype']==gene_table[g,1],]
+      secondFC_sub=secondFC.list[[i]][row.names(cell_sub)]
+      secondFC_sub=sort(secondFC_sub,decreasing = TRUE)
+      if(length(secondFC_sub)>10){
+        cell_sub=cell_sub[names(secondFC_sub)[1:10],]
+      }else{cell_sub=cell_sub[names(secondFC_sub),]
+      
+      }
+      ref_list.names_in=rbind(ref_list.names_in,cell_sub)
+    }}
+  
+  ref_list.names_in=ref_list.names_in[,1:(ncol(ref_list.names_in)-1)]
+  return(ref_list.names_in)
+}
+
+ref_list.FC_screen<-pbmclapply(1:length(ref_list.names),func_FC_screen,mc.cores = 2)
+
+names(ref_list.FC_screen)=paste0(patient_id_df[,1],'_sep.ref')
+
+
+saveRDS(ref_list.FC_screen, file="~/ReCIDE/应用_前二_新_inter/sep_ref_inter_COVID/ref_sep_names.FC_screen.rds")
+
+
+
+
+library(DWLS)
+library(pbmcapply)
+library(fastSave)
+library(COSG)
+library(stringr)
+library(dplyr)
+library(Seurat)
+
+combined.data.sub<-readRDS.lbzip2('~/scRNA_Seq_data/PBMC/Stephenson_seurat.rdsFS',n.cores = 200)
+patient_id_df<-as.data.frame(table(combined.data.sub@meta.data[["patient_id"]]))
+patient_id_df<-patient_id_df[patient_id_df[,2]>500,]
+
+PFC.dgedata_150.list<-SplitObject(combined.data.sub,split.by = 'patient_id')##############
+PFC.dgedata_150.list=PFC.dgedata_150.list[sort(names(PFC.dgedata_150.list))]
+
+ref_sep_names.FC_screen <- readRDS("~/ReCIDE/应用_前二_新_inter/sep_ref_inter_COVID/ref_sep_names.FC_screen.rds")
+ref_sep_names.FC_screen=ref_sep_names.FC_screen[sort(names(ref_sep_names.FC_screen))]
+
+all(names(PFC.dgedata_150.list)==substr(names(ref_sep_names.FC_screen),1,nchar(names(ref_sep_names.FC_screen))-8))
+
+
+
+func_findf<-function(il){
+  scdata_test<-PFC.dgedata_150.list[[il]]
+  scdata_test=scdata_test[row.names(ref_sep_names.FC_screen[[il]]),]
+  
+  scdata_test@meta.data[["usetype"]]<-scdata_test@meta.data[["true"]]###########
+  cell.table<-as.data.frame(table(scdata_test@meta.data[["usetype"]]))
+  cell.table<-cell.table[cell.table[,2]>3,]
+  scdata_test<-subset(scdata_test,usetype %in% cell.table[,1])
+  gc()
+  labels<-as.character(scdata_test@meta.data[["usetype"]])
+  # labels <- str_replace(labels, "&", "_")
+  labels <- str_replace(labels, "-", "_")
+  labels <- str_replace(labels, "\\.", "_")
+  # labels <- str_replace(labels, " ", "_")
+  # labels <- str_replace(labels, " ", "_")
+  
+  scdata_test@meta.data[['usetype']]<-labels
+  Idents(scdata_test)<-'usetype'
+  
+  scdata_test<-NormalizeData(scdata_test)
+  # scdata_test<-NormalizeData(scdata_test)
+  
+  COSG_markers <- cosg(
+    scdata_test,
+    groups='all',
+    assay='RNA',
+    slot='data',
+    mu=1,
+    n_genes_user=100)
+  
+  ##整理marker基因名字等
+  de_group_list<-list()
+  for (i in 1:ncol(COSG_markers[["names"]])) {
+    de_group_list[[i]]<-as.data.frame(COSG_markers[["names"]][,i])
+    de_group_list[[i]][,2]<-as.data.frame(COSG_markers[["scores"]][,i])
+    colnames(de_group_list[[i]])<-c('gene_name','scores')
+    row.names(de_group_list[[i]])<-de_group_list[[i]][,1]
+  }
+  names(de_group_list)<-colnames(COSG_markers[["names"]])
+  
+  ##fold-change筛选
+  df2<-as.data.frame(t(as.data.frame(scdata_test@assays[["RNA"]]@data)))
+  gc()
+  df2[,"usetype"]<-scdata_test@meta.data[["usetype"]]
+  ref_list1<-group_by(df2,usetype) %>% summarize_each(mean)
+  ref_list1<-as.data.frame(ref_list1)
+  row.names(ref_list1)<-ref_list1[,1]
+  ref_list1<-ref_list1[,-1]
+  ref_list1<-as.data.frame(t(ref_list1))
+  
+  secondFC <- c()
+  for(gene in rownames(ref_list1)){
+    secondFC <- c(secondFC, sort(as.numeric(ref_list1[gene, ]), decreasing = T)[1]/sort(as.numeric(ref_list1[gene, ]), decreasing = T)[2])
+  }
+  names(secondFC) <- row.names(ref_list1)
+  secondFC<-secondFC[secondFC>1.5]
+  secondFC<-secondFC[!(is.na(secondFC))]
+  
+  de_group_listFB<-de_group_list
+  for (i in 1:length(de_group_list)) {
+    de_group_list[[i]]<-subset(de_group_list[[i]],row.names(de_group_list[[i]]) %in% names(secondFC))
+  }
+  
+  #吃低保
+  low_gene=10+round(length(de_group_listFB)/10)
+  for (i in 1:length(de_group_list)) {
+    if(nrow(de_group_list[[i]])<10){
+      de_group_list[[i]]<-de_group_listFB[[i]][1:low_gene,]
+    }}
+  
+  
+  
+  id<-labels
+  scdata<-as.matrix(scdata_test@assays[["RNA"]]@counts)
+  colnames(scdata) <- str_replace(colnames(scdata), "-", "_")
+  
+  
+  numberofGenes <- c()
+  for (i in unique(id)) {
+    de_group <- de_group_list[[i]]
+    # de_group <- readRDS(file = paste(path, "/de_", i, ".rds",
+    #                                  sep = ""))
+    # DEGenes <- rownames(de_group)[intersect(which(de_group$scores < pval.cutoff), which(de_group$avg_log2FC > diff.cutoff))]
+    DEGenes <- rownames(de_group)
+    
+    nonMir = grep("MIR|Mir", DEGenes, invert = T)
+    assign(paste("cluster_lrTest.table.", i, sep = ""), de_group[which(rownames(de_group) %in% DEGenes[nonMir]), ])
+    numberofGenes <- c(numberofGenes, length(DEGenes[nonMir]))
+  }
+  
+  f=100
+  Sig_list_in<-list()
+  conditionNumbers <- c()
+  for (G in 50:f) {
+    Genes <- c()
+    j = 1
+    for (i in unique(id)) {
+      if (numberofGenes[j] > 0) {
+        temp <- paste("cluster_lrTest.table.", i, sep = "")
+        temp <- as.name(temp)
+        temp <- eval(parse(text = temp))
+        temp <- temp[order(temp$scores, decreasing = TRUE),
+        ]
+        Genes <- c(Genes, (rownames(temp)[1:min(G, numberofGenes[j])]))
+      }
+      j = j + 1
+    }
+    Genes <- unique(Genes)
+    ExprSubset <- scdata[Genes, ]
+    Sig <- NULL
+    # for (i in unique(id)) {
+    #   Sig <- cbind(Sig, (apply(ExprSubset, 1, function(y) mean(y[which(id ==  i)]))))
+    # }
+    # 
+    
+    Sig<-as.data.frame(t(ExprSubset))
+    Sig[,'id']<-id
+    Sig=group_by(Sig,id) %>% summarize_each(mean)
+    Sig<-as.data.frame(t(Sig))
+    colnames(Sig)<-Sig[1,]
+    Sig<-Sig[-1,]
+    # Sig <- as.data.frame(lapply(Sig, as.numeric))
+    Sig <- dplyr::mutate_all(Sig, as.numeric)
+    
+    # Sig2<-cbind(Sig,e1[row.names(Sig),])
+    # kappa(Sig2)
+    colnames(Sig) <- unique(id)
+    conditionNumbers <- c(conditionNumbers, kappa(Sig))##降低kappa值，kappa值越高说明多重共线性越强，我们希望kappa值低一些
+    Sig_list_in[[G-49]]<-Sig
+  }
+  
+  
+  # ##################
+  # plot(conditionNumbers)
+  # 
+  # ##每个细胞类型至少有10个marker，尝试让kappa值最小
+  # 
+  # # kappa<100则认为有共线性程度很小。
+  # # 100<=kappa<=1000则认为存在中等程度或者较强的共线性。
+  # # 若kappa>1000则认为存在很严重的共线性
+  G <-  which.min(conditionNumbers) + min(49, numberofGenes - 1)
+  #
+  #
+  Genes <- c()
+  j = 1
+  for (i in unique(id)) {
+    if (numberofGenes[j] > 0) {
+      temp <- paste("cluster_lrTest.table.", i, sep = "")
+      temp <- as.name(temp)
+      temp <- eval(parse(text = temp))
+      temp <- temp[order(temp$scores, decreasing = TRUE),
+      ]
+      Genes <- c(Genes, (rownames(temp)[1:min(G, numberofGenes[j])]))
+    }
+    j = j + 1
+  }
+  Genes <- unique(Genes)
+  ExprSubset <- scdata[Genes, ]
+  # Sig <- NULL
+  # for (i in unique(id)) {
+  #   Sig <- cbind(Sig, (apply(ExprSubset, 1, function(y) mean(y[which(id == i)]))))
+  # }
+  # colnames(Sig) <- unique(id)
+  Sig<-as.data.frame(t(ExprSubset))
+  Sig[,'id']<-id
+  Sig=group_by(Sig,id) %>% summarize_each(mean)
+  Sig<-as.data.frame(t(Sig))
+  colnames(Sig)<-Sig[1,]
+  Sig<-Sig[-1,]
+  # Sig <- as.data.frame(lapply(Sig, as.numeric))
+  Sig <- dplyr::mutate_all(Sig, as.numeric)
+  return(Sig)
+}
+
+Sig_list<-pbmclapply(names(PFC.dgedata_150.list),func_findf,mc.cores = 8)
+names(Sig_list)<-names(PFC.dgedata_150.list)
+saveRDS(Sig_list,file = '~/ReCIDE/应用_前二_新_inter/sep_ref_inter_COVID/PBMC_sep_sig.rds')
