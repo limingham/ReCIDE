@@ -46,7 +46,9 @@ Download "ReCIDE_all_function.R" and load it:
 
 ```
 source('/your_path/ReCIDE_all_function.R')
+#if you want to use CIBERSORT as your kernel, source('your CIBERSORT path')
 ```
+
 
 ### 2. Load DEMO data:
 
