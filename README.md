@@ -1,4 +1,4 @@
-#### ReCIDE: Robust estimation of cell type proportions by integrating single-reference-based deconvolutions 
+# ReCIDE: Robust estimation of cell type proportions by integrating single-reference-based deconvolutions 
 
 Author: Minghan Li
 
