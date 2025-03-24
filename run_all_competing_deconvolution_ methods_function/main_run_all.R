@@ -39,7 +39,7 @@ func_run_ReCIDE = function(SC_ref,EXP_df,celltype,subject,dir_ref,dir_results){
 
 
 
-func_run_ReCIDE_and_postprocessing = function(SC_ref1,SC_ref2,EXP_df1,EXP_df2,celltype1,celltype2,subject1,subject2,dir_ref1,dir_ref2,dir_results1,dir_results2,file_re_df){
+func_run_ReCIDE_and_postprocessing = function(SC_ref1,SC_ref2,EXP_df1,EXP_df2,celltype1,celltype2,subject1,subject2,dir_ref1,dir_ref2,dir_results1,dir_results2,dir_diff_celltype_output){
   func_run_ReCIDE(SC_ref1,EXP_df1,celltype1,subject1,dir_ref1,dir_results1)
   func_run_ReCIDE(SC_ref2,EXP_df2,celltype2,subject2,dir_ref2,dir_results2)
   
@@ -47,7 +47,7 @@ func_run_ReCIDE_and_postprocessing = function(SC_ref1,SC_ref2,EXP_df1,EXP_df2,ce
   results_list[[1]]=readRDS(dir_results1)[["results_final_df"]]
   results_list[[2]]=readRDS(dir_results2)[["results_final_df"]]
   
-  compare_group_proportion(results_list,file_re_df)
+  compare_group_proportion(results_list,dir_diff_celltype_output)
 }
 
 
