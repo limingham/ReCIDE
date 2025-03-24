@@ -120,6 +120,7 @@ The final deconvolution results are stored in `ReCIDE_results[["results_final_df
 
 ```
 ReCIDE_results[["results_final_df"]]
+heatmap(as.matrix(ReCIDE_results[["results_final_df"]]))
 ```
 
 ### 6. Comparative analysis
