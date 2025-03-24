@@ -952,7 +952,7 @@ cosine_screen_LowToHigh<-function(S,B){
 
 
 
-compare_group_proportion <- function(results_list,file_re_df){
+compare_group_proportion <- function(results_list,dir_diff_celltype_output){
   df_category1 = as.data.frame(t(results_list[[1]]))
   df_category2 = as.data.frame(t(results_list[[2]]))
   
@@ -1003,5 +1003,5 @@ compare_group_proportion <- function(results_list,file_re_df){
     Trend = trends,
     Diff=diff
   )
-  saveRDS(re_df,file=file_re_df)
+  saveRDS(re_df,file=dir_diff_celltype_output)
 }
