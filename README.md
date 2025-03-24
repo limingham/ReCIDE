@@ -122,7 +122,27 @@ The final deconvolution results are stored in `ReCIDE_results[["results_final_df
 ReCIDE_results[["results_final_df"]]
 ```
 
+### 6. Comparative analysis
 
+If you want to compare the changes in cell proportion differences between disease and normal tissues (or between disease groups), please execute the following code:
 
+```
+func_run_ReCIDE_postprocessing(SC_ref1,
+SC_ref2,
+EXP_df1,
+EXP_df2,
+celltype1,
+celltype2,
+subject1,
+subject2,
+dir_ref1,
+dir_ref2,
+dir_results1,
+dir_results2,
+dir_diff_celltype_output)
+
+dir_diff_celltype_output: Cell types with proportion differences between groups, in a format similar to: /home/example.rds
+
+```
 
 
