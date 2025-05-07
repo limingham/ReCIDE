@@ -25,8 +25,8 @@ MGM_build<-function(SC_ref,EXP_df,label_celltype,label_subject,n_cores=5){
                              ref_sep_FC_screen, n_cores_in)
   
   return(ref_list)
-    
-    
+  
+  
 }
 
 
@@ -205,7 +205,8 @@ SecondFC_filter <- function(SC_ref_sub,n_cores=5){
 ##############ref_build
 ##############
 ##############
-
+# Build_ReCIDE_Sig(reference_1,EXP_df,
+#                  ref_sep_FC_screen, n_cores_in)
 Build_ReCIDE_Sig<-function(SC_ref_sub,EXP_df,
                            ref_sep_names.FC_screen, n_cores=5){
   
@@ -224,6 +225,16 @@ Build_ReCIDE_Sig<-function(SC_ref_sub,EXP_df,
   
   sc_ref_list<-SplitObject(SC_ref_sub,split.by = 'subject_label')##############
   sc_ref_list=sc_ref_list[sort(names(sc_ref_list))]
+  
+  for (l_in in length(sc_ref_list):1) {
+    cell.table<-as.data.frame(table(sc_ref_list[[l_in]]@meta.data[["celltype_label"]]))
+    cell.table<-cell.table[cell.table[,2]>3,]
+    if(nrow(cell.table) <2){sc_ref_list = sc_ref_list[-l_in]}
+    
+    # if(length(unique(sc_ref_list[[l_in]]@meta.data[["celltype_label"]])) < 2){sc_ref_list = sc_ref_list[-l_in]}
+    # print(length(unique(sc_ref_list[[l_in]]@meta.data[["celltype_label"]])))
+  }
+  
   
   func_findf<-function(il){
     scdata_test<-sc_ref_list[[il]]
@@ -378,7 +389,7 @@ Build_ReCIDE_Sig<-function(SC_ref_sub,EXP_df,
       # kappa(Sig2)
       # colnames(Sig) <- unique(id)
       Sig=ref_mat[Genes,]
-      conditionNumbers <- c(conditionNumbers, kappa(as.matrix(Sig)))##??????kappa??????kappa???????????????????????????????????????????????????kappa????????????
+      conditionNumbers <- c(conditionNumbers, base::kappa(as.matrix(Sig)))##??????kappa??????kappa???????????????????????????????????????????????????kappa????????????
       Sig_list_in[[G-49]]<-Sig
     }
     
@@ -463,14 +474,80 @@ ReCIDE_deconvolution <- function(Sig_list,EXP_df,Method = 'DWLS',n_cores=5,n_cel
   names(EXP)=colnames(EXP_df)
   
   
-
   
-  if(length(Sig_list)<1.5*length(EXP)){
+  if(Method == 'DWLS'){
+    if(length(Sig_list)<1.5*length(EXP)){
+      
+      fun_DWLS_in<-function(i){
+        bulk<-EXP[[i]]
+        sep_ref.list<-Sig_list
+        
+        sep_solDWLS_inside<-list()
+        for (j in 1:length(sep_ref.list)) {
+          ##dwls??????dataframe?????????matrix
+          ref1<-as.matrix(sep_ref.list[[j]])
+          
+          # batch_output<-cosine_screen_HighToLow(ref1,bulk)
+          batch_output<-cosine_screen_LowToHigh(ref1,bulk)
+          # batch_output<-cosine_screen_GA(ref1,bulk)
+          
+          tr <- batch_output[[2]]
+          # tr<-trimData(ref1,bulk)
+          sep_solDWLS_inside[[j]]<-try(solveDampenedWLS(tr[[1]],tr[[2]]), TRUE)
+          
+          
+          names(sep_solDWLS_inside)[j]<-names(sep_ref.list)[j]
+          
+          
+        }
+        return(sep_solDWLS_inside)
+      }
+      sep_solDWLS=pbmclapply(1:length(EXP),fun_DWLS_in,mc.cores=n_cores)
+      names(sep_solDWLS)=names(EXP)
+      
+    }else{
+      sep_solDWLS=list()
+      
+      
+      for (f in 1:length(EXP)) {
+        bulk<-EXP[[f]]
+        sep_ref.list<-Sig_list
+        
+        DWLS_output<-list()
+        
+        
+        fun_DWLS_in2<-function(j){
+          ref1<-as.matrix(sep_ref.list[[j]])
+          
+          batch_output<-cosine_screen_LowToHigh(ref1,bulk)
+          
+          tr <- batch_output[[2]]
+          sep_solDWLS_j<-try(solveDampenedWLS(tr[[1]],tr[[2]]), TRUE)
+          
+          return(sep_solDWLS_j)
+          
+        }
+        sep_solDWLS_j=mclapply(1:length(sep_ref.list),fun_DWLS_in2,mc.cores=n_cores)
+        names(sep_solDWLS_j)=names(sep_ref.list)
+        
+        sep_solDWLS[[f]]=sep_solDWLS_j
+      }
+      names(sep_solDWLS)=names(EXP)
+      
+    }
     
+    
+    for (j in 1:length(sep_solDWLS)) {
+      for(k in length(sep_solDWLS[[j]]):1){
+        if(length(sep_solDWLS[[j]][[k]])<n_celltype){sep_solDWLS[[j]][[k]]<-NULL}
+      }
+    }
+    
+  }else if(Method == 'CIBERSORT'){
     fun_DWLS_in<-function(i){
       bulk<-EXP[[i]]
       sep_ref.list<-Sig_list
-      
+      print(i)
       sep_solDWLS_inside<-list()
       for (j in 1:length(sep_ref.list)) {
         ##dwls??????dataframe?????????matrix
@@ -481,8 +558,11 @@ ReCIDE_deconvolution <- function(Sig_list,EXP_df,Method = 'DWLS',n_cores=5,n_cel
         # batch_output<-cosine_screen_GA(ref1,bulk)
         
         tr <- batch_output[[2]]
-        # tr<-trimData(ref1,bulk)
-        sep_solDWLS_inside[[j]]<-try(solveDampenedWLS(tr[[1]],tr[[2]]), TRUE)
+        query_df=as.data.frame(tr[[2]])
+        query_df=cbind(query_df,query_df)
+        ref_df=as.data.frame(tr[[1]])
+        
+        sep_solDWLS_inside[[j]]<-CIBERSORT(ref_df,query_df,perm = 100,QN=TRUE)
         
         
         names(sep_solDWLS_inside)[j]<-names(sep_ref.list)[j]
@@ -494,45 +574,9 @@ ReCIDE_deconvolution <- function(Sig_list,EXP_df,Method = 'DWLS',n_cores=5,n_cel
     sep_solDWLS=pbmclapply(1:length(EXP),fun_DWLS_in,mc.cores=n_cores)
     names(sep_solDWLS)=names(EXP)
     
-  }else{
-    sep_solDWLS=list()
-    
-    
-    for (f in 1:length(EXP)) {
-      bulk<-EXP[[f]]
-      sep_ref.list<-Sig_list
-      
-      DWLS_output<-list()
-      
-      
-      fun_DWLS_in2<-function(j){
-        ref1<-as.matrix(sep_ref.list[[j]])
-        
-        batch_output<-cosine_screen_LowToHigh(ref1,bulk)
-        
-        tr <- batch_output[[2]]
-        sep_solDWLS_j<-try(solveDampenedWLS(tr[[1]],tr[[2]]), TRUE)
-        
-        return(sep_solDWLS_j)
-        
-      }
-      sep_solDWLS_j=mclapply(1:length(sep_ref.list),fun_DWLS_in2,mc.cores=n_cores)
-      names(sep_solDWLS_j)=names(sep_ref.list)
-      
-      sep_solDWLS[[f]]=sep_solDWLS_j
-    }
-    names(sep_solDWLS)=names(EXP)
-    
   }
   
 
-  for (j in 1:length(sep_solDWLS)) {
-    for(k in length(sep_solDWLS[[j]]):1){
-      if(length(sep_solDWLS[[j]][[k]])<n_celltype){sep_solDWLS[[j]][[k]]<-NULL}
-    }
-  }
-  
-  # source("~/ReCIDE/PCA_and_hclust/ReCIDE_PCA.R")
   prd_df=ReCIDE_PCA(sep_solDWLS,method=Method)
   
   prd_df=prd_df[sort(row.names(prd_df)),sort(colnames(prd_df))]
@@ -654,12 +698,7 @@ ReCIDE_PCA=function(results_deconvolution,method='DWLS'){
       pca_n[,1]=scale(pca_n[,1])
       pca_n[,2]=scale(pca_n[,2])
       
-      ##pc???????????????10%
-      ##???????????????70%
-      ##???PC?????????10
-      ##????????????1???mclust
-      #####################################
-      #####################################
+      
       model <- Mclust(pca_n)
       
       
@@ -683,12 +722,9 @@ ReCIDE_PCA=function(results_deconvolution,method='DWLS'){
             kappa_value=c()
             for (ka in 1:length(data_train_list)) {
               data_in=as.data.frame(t(data_train_list[[ka]]))
-              kappa_value[ka]=kappa(as.matrix(data_in))
+              kappa_value[ka]=base::kappa(as.matrix(data_in))
             }
             
-            # kappa<100????????????????????????????????????
-            # 100<=kappa<=1000??????????????????????????????????????????????????????
-            # ???kappa>1000????????????????????????????????????
             
             patient_names=row.names(data_train_list[[which.max(kappa_value)]])
           }else{
@@ -915,3 +951,57 @@ cosine_screen_LowToHigh<-function(S,B){
 }
 
 
+
+compare_group_proportion <- function(results_list,dir_diff_celltype_output){
+  df_category1 = as.data.frame(t(results_list[[1]]))
+  df_category2 = as.data.frame(t(results_list[[2]]))
+  
+  
+  col_inter = intersect(colnames(df_category1),colnames(df_category2))
+  diff1 <- setdiff(colnames(df_category1), col_inter)
+  diff2 <- setdiff(colnames(df_category2), col_inter)
+  if(length(diff1) > 0){df_category2[,diff1] = 0}
+  
+  if(length(diff2) > 0){df_category1[,diff2] = 0}
+  
+  df_category1 = df_category1[,sort(colnames(df_category1))]
+  df_category2 = df_category2[,sort(colnames(df_category2))]
+  
+  p_values <- numeric(length = ncol(df_category1))
+  trends <- character(length = ncol(df_category2))
+  diff <- numeric(length = ncol(df_category2))
+  
+  for (j in seq_along(colnames(df_category1))) {
+    col_name <- colnames(df_category1)[j]
+    
+    df_category1_in = df_category1[, col_name]
+    
+    
+    df_category2_in = df_category2[, col_name]
+    
+    
+    pvalue <- wilcox.test(df_category1_in, df_category2_in, alternative = "two.sided")$p.value
+    p_values[j] <- pvalue
+    diff[j] <- abs(median(df_category1_in)-median(df_category2_in))
+    if (diff[j]==0){
+      diff[j] <- abs(mean(df_category1_in)-mean(df_category2_in))
+    }
+    #   
+    if (median(df_category1_in)<median(df_category2_in)) {
+      trends[j] <- '+'  
+    } else if (median(df_category1_in)>median(df_category2_in)) {
+      trends[j] <- '-'
+    } else {
+      trends[j] <- '0'  
+    }
+  }
+  adjusted_p_values <- p.adjust(p_values, method = "bonferroni")
+  
+  re_df <- data.frame(
+    Celltype = colnames(df_category1),
+    PValue = adjusted_p_values,
+    Trend = trends,
+    Diff=diff
+  )
+  saveRDS(re_df,file=dir_diff_celltype_output)
+}
