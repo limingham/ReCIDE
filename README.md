@@ -6,6 +6,13 @@ Environment: R
 
 Correspondence:  If you have any questions, please ask on GitHub or contact mhli23@m.fudan.edu.cn. 
 
+ReCIDE is a multi-reference-based RNA-seq deconvolution model. In our benchmark evaluations, ReCIDE achieved performance that outperforms other mainstream deconvolution algorithms. It was published in 《Briefings in Bioinformatics》 in 2024.
+
+<img width="4000" height="2250" alt="Figure_1" src="https://github.com/user-attachments/assets/fa642a4e-c0c9-414e-933c-6359a6b3f1be" />
+
+
+
+
 # Requirement:
 
 Before using ReCIDE, please make sure the following packages are installed in your R environment. Sometimes, different versions of R packages may not cause significant issues, but it is beneficial to keep R package versions consistent.
